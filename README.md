@@ -1,10 +1,12 @@
-<p align="center"><img src="misc/porechop_logo_knife.png" alt="Porechop" width="600"></p>
+<!--<p align="center"><img src="misc/porechop_logo_knife.png" alt="Porechop" width="600"></p>-->
 
-Porechop is a tool for finding and removing adapters from [Oxford Nanopore](https://nanoporetech.com/) reads. Adapters on the ends of reads are trimmed off, and when a read has an adapter in its middle, it is treated as chimeric and chopped into separate reads. Porechop performs thorough alignments to effectively find adapters, even at low sequence identity.
+WARNING: Uncomplete build! Do not use yet as the functions are not yet implemented correctly!
 
-Porechop also supports demultiplexing of Nanopore reads that were barcoded with the [Native Barcoding Kit](https://store.nanoporetech.com/native-barcoding-kit-1d.html), [PCR Barcoding Kit](https://store.nanoporetech.com/pcr-barcoding-kit-96.html) or [Rapid Barcoding Kit](https://store.nanoporetech.com/rapid-barcoding-sequencing-kit.html).
+Poresnip is a tool based on the great work of Porechop (See rrwick/Porechop).
 
+However I disagreed with many parts of the design and felt that it would be easier to simply fork and create my own version rather than trying to add functions to Porechop. In contrast to Porechop, Poresnip is more selective and requires more user input. The user must supply both adapter sequence (or name of library prepp kit in future editions) and potential barcode sequences. Therefore the automatic detection part is ommitted and you can be 100% sure that all reads that are "snipped" contain both the correct adapter sequence and the correct barcodes, if provided.
 
+Down below the documenation of Porechop is copied, but I plan to adjust this as I develop the program further, keep posted for updates!
 
 # Table of contents
 
