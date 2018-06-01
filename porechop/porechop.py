@@ -1,17 +1,16 @@
 """
+Copyright 2018 Alice Anlind (alice.anlind@gmail.com)
+https://github.com/Sn0flingan/Poresnip
+
+Built upon Porechop code created by:
 Copyright 2017 Ryan Wick (rrwick@gmail.com)
 https://github.com/rrwick/Porechop
+which is part of the GNU General Public License.
 
-This module contains the main script for Porechop. It is executed when a user runs `porechop`
-(after installation) or `porechop-runner.py` (directly from the source directory).
+This module contains the main script for Poresnip. It is executed when a user runs `poresnip`
+(after installation) or `poresnip-runner.py` (directly from the source directory).
 
-This file is part of Porechop. Porechop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Porechop is distributed in
-the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Porechop. If
-not, see <http://www.gnu.org/licenses/>.
+//CONSIDER ADDING LICENSE HERE
 """
 
 import argparse
@@ -33,15 +32,20 @@ def main():
     args = get_arguments()
     reads, check_reads, read_type = load_reads(args.input, args.verbosity, args.print_dest,
                                                args.check_reads)
-
+                                               
+    '''
     matching_sets = find_matching_adapter_sets(check_reads, args.verbosity, args.end_size,
                                                args.scoring_scheme_vals, args.print_dest,
-                                               args.adapter_threshold, args.threads)
-    matching_sets = exclude_end_adapters_for_rapid(matching_sets)
-    matching_sets = fix_up_1d2_sets(matching_sets)
+                                               args.adapter_threshold, args.threads)#Currently at this part
+    matching_sets = exclude_end_adapters_for_rapid(matching_sets)  #Keep for rapid kit
+    matching_sets = fix_up_1d2_sets(matching_sets)   #Keep for 1d2 kit
     display_adapter_set_results(matching_sets, args.verbosity, args.print_dest)
     matching_sets = add_full_barcode_adapter_sets(matching_sets)
-
+    '''
+    
+    matching_set = ADAPTER #Add code for combining adapters and barcodes
+    
+    '''
     if args.barcode_dir:
         forward_or_reverse_barcodes = choose_barcoding_kit(matching_sets, args.verbosity,
                                                            args.print_dest)
@@ -49,6 +53,7 @@ def main():
         forward_or_reverse_barcodes = None
     if args.verbosity > 0:
         print('\n', file=args.print_dest)
+    '''
 
     if matching_sets:
         check_barcodes = (args.barcode_dir is not None)
@@ -83,7 +88,7 @@ def get_arguments():
     """
     default_threads = min(multiprocessing.cpu_count(), 16)
 
-    parser = argparse.ArgumentParser(description='Porechop: a tool for finding adapters in Oxford '
+    parser = argparse.ArgumentParser(description='Poresnip: a tool for finding adapters & barcodes in Oxford '
                                                  'Nanopore reads, trimming them from the ends and '
                                                  'splitting reads with internal adapters',
                                      formatter_class=MyHelpFormatter, add_help=False)
@@ -448,7 +453,7 @@ def find_adapters_at_read_ends(reads, matching_sets, verbosity, end_size, extra_
         for read_num, read in enumerate(reads):
             read.find_start_trim(matching_sets, end_size, extra_trim_size, end_threshold,
                                  scoring_scheme_vals, min_trim_size, check_barcodes,
-                                 forward_or_reverse_barcodes)
+                                 forward_or_reverse_barcodes) #Read is a special object, check nanopore_read.py
             read.find_end_trim(matching_sets, end_size, extra_trim_size, end_threshold,
                                scoring_scheme_vals, min_trim_size, check_barcodes,
                                forward_or_reverse_barcodes)
