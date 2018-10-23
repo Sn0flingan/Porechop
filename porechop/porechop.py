@@ -20,10 +20,12 @@ import subprocess
 import multiprocessing
 import shutil
 import re
+import csv
 from multiprocessing.dummy import Pool as ThreadPool
 from collections import defaultdict
 from .misc import load_fasta_or_fastq, print_table, red, bold_underline, MyHelpFormatter, int_to_str
-from .adapters import ADAPTERS, make_full_native_barcode_adapter, make_full_rapid_barcode_adapter
+#from .adapters import ADAPTERS, make_full_native_barcode_adapter, make_full_rapid_barcode_adapter
+from .adapters import Adapter
 from .nanopore_read import NanoporeRead
 from .version import __version__
 
@@ -43,7 +45,19 @@ def main():
     matching_sets = add_full_barcode_adapter_sets(matching_sets)
     '''
     
-    matching_set = ADAPTER #Add code for combining adapters and barcodes
+    print("loading adapters and barcodes...")
+    #adapters = load_trim_seq(args.adapters)
+    #barcodes = load_trim_seq(args.barcodes)
+    #matching_sets = combine_adapters_barcodes(adapters, barcodes)
+    matching_sets = load_trim_seq(args.barcodes)
+    forward_or_reverse_barcodes = 'forward' #forward is default
+    
+    print("Finnished loading")
+    for adapter in matching_sets:
+        #print(adapter.toString())
+        print(adapter.get_name())
+        print(adapter.is_barcode())
+        #print(adapter.barcode_direction() == forward_or_reverse_barcodes)
     
     '''
     if args.barcode_dir:
@@ -57,12 +71,20 @@ def main():
 
     if matching_sets:
         check_barcodes = (args.barcode_dir is not None)
+        print(check_barcodes)
         find_adapters_at_read_ends(reads, matching_sets, args.verbosity, args.end_size,
                                    args.extra_end_trim, args.end_threshold,
                                    args.scoring_scheme_vals, args.print_dest, args.min_trim_size,
                                    args.threads, check_barcodes, args.barcode_threshold,
                                    args.barcode_diff, args.require_two_barcodes,
                                    forward_or_reverse_barcodes)
+        #for read in reads:
+            #print("\n")
+            #print(read.name)
+            #print(read.best_start_barcode)
+            #print(read.best_end_barcode)
+            #print(read.barcode_call)
+        
         display_read_end_trimming_summary(reads, args.verbosity, args.print_dest)
 
         if not args.no_split:
@@ -110,6 +132,10 @@ def get_arguments():
                                  'a file and stderr if reads are printed to stdout')
     main_group.add_argument('-t', '--threads', type=int, default=default_threads,
                             help='Number of threads to use for adapter alignment')
+    main_group.add_argument('-a', '--adapters', default="",
+                            help='Csv file containing the adapter sequences you want to trim.')
+    main_group.add_argument('--barcodes', default="",
+                            help='Csv file containing the adapter sequences you want to trim.')
 
     barcode_group = parser.add_argument_group('Barcode binning settings',
                                               'Control the binning of reads based on barcodes '
@@ -166,7 +192,7 @@ def get_arguments():
     middle_trim_group = parser.add_argument_group('Middle adapter settings',
                                                   'Control the splitting of read from middle '
                                                   'adapters')
-    middle_trim_group.add_argument('--no_split', action='store_true',
+    middle_trim_group.add_argument('--no_split', action='store_false',
                                    help='Skip splitting reads based on middle adapters '
                                         '(default: split reads when an adapter is found in the '
                                         'middle)')
@@ -285,7 +311,7 @@ def get_albacore_barcode_from_path(albacore_path):
         return 'BC' + albacore_barcode_num
     return None
 
-
+'''
 def find_matching_adapter_sets(check_reads, verbosity, end_size, scoring_scheme_vals, print_dest,
                                adapter_threshold, threads):
     """
@@ -425,7 +451,36 @@ def add_full_barcode_adapter_sets(matching_sets):
             matching_sets.append(make_full_rapid_barcode_adapter(i))
 
     return matching_sets
+'''
 
+def load_trim_seq(sequence_file):
+    trim_sequences = []
+    with open(sequence_file, newline='') as f:
+        reader = csv.reader(f, delimiter=';')
+        try:
+            for sequence in reader:
+                non_sequence_letters = 'bdefhijklmnopqrsuvwxyz'
+                #Assume header row if it contains other items than 'a', 'c', 'g', 't'
+                if any(i in sequence[1] for i in non_sequence_letters):
+                    continue
+                trim_sequences.append(Adapter('Barcode' + sequence[0],
+                        start_sequence = (sequence[0] + '_start', sequence[1]),
+                        end_sequence = (sequence[0] + '_end', sequence[2])))
+        except csv.Error as e:
+            sys.exit('file {}, line {}: {}'.format(filename, reader.line_num, e))
+    return trim_sequences
+
+def combine_adapters_barcodes(adapters, barcodes):
+    combined_adapters = []
+    for adapter in adapters:
+        for barcode in barcodes:
+            name = 'Barcode ' + adapter.get_name() + ' ' + barcode.get_name()
+            combined_adapter = Adapter(name,
+                                       start_sequence = (name + '_start', adapter.get_start_seq()[1] + barcode.get_start_seq()[1]),
+                                       end_sequence = (name + '_end', barcode.get_end_seq()[1] + adapter.get_end_seq()[1]))
+            combined_adapters.append(combined_adapter)
+    #print(combined_adapters)
+    return combined_adapters
 
 def find_adapters_at_read_ends(reads, matching_sets, verbosity, end_size, extra_trim_size,
                                end_threshold, scoring_scheme_vals, print_dest, min_trim_size,
@@ -450,6 +505,7 @@ def find_adapters_at_read_ends(reads, matching_sets, verbosity, end_size, extra_
 
     # If single-threaded, do the work in a simple loop.
     if threads == 1:
+        print("Using 1 thread!")
         for read_num, read in enumerate(reads):
             read.find_start_trim(matching_sets, end_size, extra_trim_size, end_threshold,
                                  scoring_scheme_vals, min_trim_size, check_barcodes,
@@ -470,6 +526,7 @@ def find_adapters_at_read_ends(reads, matching_sets, verbosity, end_size, extra_
 
     # If multi-threaded, use a thread pool.
     else:
+        print("Using multi threads!")
         def start_end_trim_one_arg(all_args):
             r, a, b, c, d, e, f, g, h, i, j, k, v = all_args
             r.find_start_trim(a, b, c, d, e, f, g, k)
