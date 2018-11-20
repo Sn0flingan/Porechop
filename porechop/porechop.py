@@ -25,7 +25,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 from collections import defaultdict
 from .misc import load_fasta_or_fastq, print_table, red, bold_underline, MyHelpFormatter, int_to_str
 #from .adapters import ADAPTERS, make_full_native_barcode_adapter, make_full_rapid_barcode_adapter
-from .adapters import Adapter
+from .adapters import Adapter, kit_adapters
 from .nanopore_read import NanoporeRead
 from .version import __version__
 
@@ -47,17 +47,22 @@ def main():
     
     print("loading adapters and barcodes...")
     #adapters = load_trim_seq(args.adapters)
-    #barcodes = load_trim_seq(args.barcodes)
-    #matching_sets = combine_adapters_barcodes(adapters, barcodes)
-    matching_sets = load_trim_seq(args.barcodes)
+    barcodes = load_trim_seq(args.barcodes)
+    adapter = kit_adapters[args.seq_kit]
+    matching_sets = [adapter] + barcodes #concatenate lists
     forward_or_reverse_barcodes = 'forward' #forward is default
     
     print("Finnished loading")
+    
+    '''
     for adapter in matching_sets:
-        #print(adapter.toString())
+        print(adapter.toString())
         print(adapter.get_name())
         print(adapter.is_barcode())
         #print(adapter.barcode_direction() == forward_or_reverse_barcodes)
+    #return
+    '''
+
     
     '''
     if args.barcode_dir:
@@ -71,22 +76,23 @@ def main():
 
     if matching_sets:
         check_barcodes = (args.barcode_dir is not None)
-        print(check_barcodes)
         find_adapters_at_read_ends(reads, matching_sets, args.verbosity, args.end_size,
                                    args.extra_end_trim, args.end_threshold,
                                    args.scoring_scheme_vals, args.print_dest, args.min_trim_size,
                                    args.threads, check_barcodes, args.barcode_threshold,
                                    args.barcode_diff, args.require_two_barcodes,
                                    forward_or_reverse_barcodes)
-        #for read in reads:
-            #print("\n")
-            #print(read.name)
-            #print(read.best_start_barcode)
-            #print(read.best_end_barcode)
-            #print(read.barcode_call)
+        '''
+        for read in reads:
+            print("\n")
+            print(read.name)
+            print(read.best_start_barcode)
+            print(read.best_end_barcode)
+            print(read.barcode_call)
+        '''
         
         display_read_end_trimming_summary(reads, args.verbosity, args.print_dest)
-
+        
         if not args.no_split:
             find_adapters_in_read_middles(reads, matching_sets, args.verbosity,
                                           args.middle_threshold, args.extra_middle_trim_good_side,
@@ -132,10 +138,13 @@ def get_arguments():
                                  'a file and stderr if reads are printed to stdout')
     main_group.add_argument('-t', '--threads', type=int, default=default_threads,
                             help='Number of threads to use for adapter alignment')
-    main_group.add_argument('-a', '--adapters', default="",
-                            help='Csv file containing the adapter sequences you want to trim.')
+    main_group.add_argument('-s', '--seq_kit', default="",
+                            help="Name of the library prepp sequencing kit. Currently supported"
+                                 " kits are: SQK-LSK109, SQK-LSK108, SQK-LSK308, SQK-LSK308, SQK-RAD004")
     main_group.add_argument('--barcodes', default="",
-                            help='Csv file containing the adapter sequences you want to trim.')
+                            help="Csv file containing the adapter sequences you want to trim. Note that"
+                                " nanopores offical barcodes contain flanking sequences, varying based on"
+                                " kit.")
 
     barcode_group = parser.add_argument_group('Barcode binning settings',
                                               'Control the binning of reads based on barcodes '
@@ -192,7 +201,7 @@ def get_arguments():
     middle_trim_group = parser.add_argument_group('Middle adapter settings',
                                                   'Control the splitting of read from middle '
                                                   'adapters')
-    middle_trim_group.add_argument('--no_split', action='store_false',
+    middle_trim_group.add_argument('--no_split', action='store_true',
                                    help='Skip splitting reads based on middle adapters '
                                         '(default: split reads when an adapter is found in the '
                                         'middle)')
@@ -201,7 +210,7 @@ def get_arguments():
                                         'reads with middle adapters are split) (required for '
                                         'reads to be used with Nanopolish, this option is on by '
                                         'default when outputting reads into barcode bins)')
-    middle_trim_group.add_argument('--middle_threshold', type=float, default=85.0,
+    middle_trim_group.add_argument('--middle_threshold', type=float, default=90.0,
                                    help='Adapters in the middle of reads must have at least this '
                                         'percent identity to be found (0 to 100)')
     middle_trim_group.add_argument('--extra_middle_trim_good_side', type=int, default=10,
@@ -459,11 +468,17 @@ def load_trim_seq(sequence_file):
         reader = csv.reader(f, delimiter=';')
         try:
             for sequence in reader:
+                sequence = [s.upper() for s in sequence] #make sure sequences is all in lower case
                 non_sequence_letters = 'bdefhijklmnopqrsuvwxyz'
                 #Assume header row if it contains other items than 'a', 'c', 'g', 't'
                 if any(i in sequence[1] for i in non_sequence_letters):
                     continue
-                trim_sequences.append(Adapter('Barcode' + sequence[0],
+                if len(sequence)==2:
+                    trim_sequences.append(Adapter('Barcode_' + sequence[0],
+                                                  start_sequence = (sequence[0] + '_start', sequence[1]),
+                                                  end_sequence = (sequence[0] + '_end', rev_comp(sequence[1]))))
+                else:
+                    trim_sequences.append(Adapter('Barcode_' + sequence[0],
                         start_sequence = (sequence[0] + '_start', sequence[1]),
                         end_sequence = (sequence[0] + '_end', sequence[2])))
         except csv.Error as e:
@@ -505,7 +520,6 @@ def find_adapters_at_read_ends(reads, matching_sets, verbosity, end_size, extra_
 
     # If single-threaded, do the work in a simple loop.
     if threads == 1:
-        print("Using 1 thread!")
         for read_num, read in enumerate(reads):
             read.find_start_trim(matching_sets, end_size, extra_trim_size, end_threshold,
                                  scoring_scheme_vals, min_trim_size, check_barcodes,
@@ -526,7 +540,6 @@ def find_adapters_at_read_ends(reads, matching_sets, verbosity, end_size, extra_
 
     # If multi-threaded, use a thread pool.
     else:
-        print("Using multi threads!")
         def start_end_trim_one_arg(all_args):
             r, a, b, c, d, e, f, g, h, i, j, k, v = all_args
             r.find_start_trim(a, b, c, d, e, f, g, k)
@@ -789,3 +802,8 @@ def output_progress_line(completed, total, print_dest, end_newline=False, step=1
 
     end_char = '\n' if end_newline else ''
     print('\r' + progress_str, end=end_char, flush=True, file=print_dest)
+
+def rev_comp(seq):
+    complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+    rev_comp_seq = "".join(complement.get(base,base) for base in reversed(seq))
+    return rev_comp_seq

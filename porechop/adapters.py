@@ -46,11 +46,14 @@ class Adapter(object):
         Gets the barcode name for the output files. We want a concise name, so it looks at all
         options and chooses the shortest.
         """
+        '''
         possible_names = [self.name, self.start_sequence[0]]
         if self.end_sequence:
             possible_names.append(self.end_sequence[0])
         barcode_name = sorted(possible_names, key=lambda x: len(x))[0]
         return barcode_name.replace(' ', '_')
+        '''
+        return self.name
             
     def get_name(self):
         return self.name
@@ -64,18 +67,23 @@ class Adapter(object):
     def toString(self):
         return "--------------\n" + self.name + "\n" + self.start_sequence[1]  + "\n" + self.end_sequence[1] + "\n"
 
-'''
-ADAPTERS = [Adapter('SQK-NSK007',
-                    start_sequence=('SQK-NSK007_Y_Top', 'AATGTACTTCGTTCAGTTACGTATTGCT'),
+
+##Motor protein binding part of top adapter sequence was removed
+kit_adapters = {"SQK-LSK109": Adapter('SQK-LSK109',
+                    start_sequence=('SQK-NSK007_Y_Top_trunk', 'AATGTACTTCGTTCAGTTACGTATTGCT'),
                     end_sequence=('SQK-NSK007_Y_Bottom', 'GCAATACGTAACTGAACGAAGT')),
-
-            Adapter('Rapid',
-                    start_sequence=('Rapid_adapter', 'GTTTTCGCATTTATCGTGAAACGCTTTCGCGTTTTTCGTGCGCCGCTTCA')),
-
-            Adapter('Barcode 96 (forward)',
-                    start_sequence=('BC96', 'CTGAACGGTCATAGAGTCCACCAT'),
-                    end_sequence=('BC96_rev', 'ATGGTGGACTCTATGACCGTTCAG'))]
-'''
+                "EXP-PBC096-SQK-LSK108": Adapter('EXP-PBC096-SQK-LSK108',
+                    start_sequence=('SQK-NSK007_Y_Top_trunk-EXP-PBC096', 'AATGTACTTCGTTCAGTTACGTATTGCTGGTGCTG'),
+                    end_sequence=('SQK-NSK007_Y_Bottom-EXP-PBC096', 'GCAATACGTAACTGAACGAAGT')),
+                "SQK-LSK108": Adapter('SQK-LSK108',
+                    start_sequence=('SQK-NSK007_Y_Top_trunk', 'AATGTACTTCGTTCAGTTACGTATTGCT'),
+                    end_sequence=('SQK-NSK007_Y_Bottom', 'GCAATACGTAACTGAACGAAGT')),
+                "SQK-LSK308": Adapter('SQK-LSK308',
+                    start_sequence=('SQK-LSK308_1D2_Top', 'GTCAGAGAGGTTCCAAGTCAGAGAGGTTCCT'),
+                    end_sequence=('SQK-LSK308_1D2_Bottom','GGCGTCTGCTTGGGTGTTTAACCTTTTTGTCAGAGAGGTTCCAAGTCAGAGAGGTTCCT')),
+                "SQK-RAD004": Adapter('SQK-RAD004',
+                      start_sequence=('SQK-RAD004_Y_Top_trunk', 'AATGTACTTCGTTCAGTTACGTATTGCT'),
+                                      end_sequence=('SQK-RAD004_Y_Bottom','GCAATACGTAACTGAACGAAGT'))}
 
 def make_full_native_barcode_adapter(barcode_num):
     barcode = [x for x in ADAPTERS if x.name == 'Barcode ' + str(barcode_num) + ' (reverse)'][0]
