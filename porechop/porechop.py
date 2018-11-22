@@ -76,10 +76,11 @@ def main():
 
     if matching_sets:
         check_barcodes = (args.barcode_dir is not None)
+        threads_adapter_ends = 4
         find_adapters_at_read_ends(reads, matching_sets, args.verbosity, args.end_size,
                                    args.extra_end_trim, args.end_threshold,
                                    args.scoring_scheme_vals, args.print_dest, args.min_trim_size,
-                                   args.threads, check_barcodes, args.barcode_threshold,
+                                   threads_adapter_ends, check_barcodes, args.barcode_threshold,
                                    args.barcode_diff, args.require_two_barcodes,
                                    forward_or_reverse_barcodes)
         '''
