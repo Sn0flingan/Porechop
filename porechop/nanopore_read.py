@@ -53,6 +53,34 @@ class NanoporeRead(object):
         self.barcode_call = 'none'
 
         self.albacore_barcode_call = None
+    
+    def __str__(self):
+        str_representation = "\n"
+        str_representation += "Name: " + self.name + "\n"
+        str_representation += "Sequence: " + self.seq + "\n"
+        str_representation += "RNA: " + str(self.rna) + "\n"
+        str_representation += "Quals: " + self.quals + "\n"
+        str_representation += "\n"
+        str_representation += "Start trim amount: " + str(self.start_trim_amount) + "\n"
+        str_representation += "End trim amount: " + str(self.end_trim_amount) + "\n"
+        str_representation += "Start adapters alignment: " + str(self.start_adapter_alignments) + "\n"
+        str_representation += "End adapters alignment: " + str(self.start_adapter_alignments) + "\n"
+        str_representation += "\n"
+        str_representation += "Middle adapter position: " + str(self.middle_adapter_positions) + "\n"
+        str_representation += "Middle adapter trim position: " + str(self.middle_trim_positions) + "\n"
+        str_representation += "Middle adapter hit: " + self.middle_hit_str + "\n"
+        str_representation += "\n"
+        str_representation += "Start barcode scores: " + str(self.start_barcode_scores) + "\n"
+        str_representation += "End barcode scores: " + str(self.end_barcode_scores) + "\n"
+        str_representation += "\n"
+        str_representation += "Best start barcode: " + str(self.best_start_barcode) + "\n"
+        str_representation += "Best end barcode: " + str(self.best_end_barcode) + "\n"
+        str_representation += "2nd best start barcode: " + str(self.second_best_start_barcode) + "\n"
+        str_representation += "2nd best end barcode: " + str(self.second_best_end_barcode) + "\n"
+        str_representation += "Barcode call: " + str(self.barcode_call) + "\n"
+        str_representation += "\n"
+        str_representation += "Albacode barcode: " + str(self.albacore_barcode_call) + "\n"
+        return str_representation
 
     def get_seq_with_start_end_adapters_trimmed(self):
         if not self.start_trim_amount and not self.end_trim_amount:
@@ -187,6 +215,14 @@ class NanoporeRead(object):
                     adapter.barcode_direction() == forward_or_reverse:
                 self.start_barcode_scores[adapter.get_barcode_name()] = full_score
 
+        top_3_barcodes = {}
+        idx = 0
+        for key, value in sorted(self.start_barcode_scores.items(), key=lambda kv: (kv[1], kv[0]), reverse=True):
+            if idx < 3:
+                top_3_barcodes[key] = value
+            idx += 1
+        self.start_barcode_scores = top_3_barcodes
+
     def find_end_trim(self, adapters, end_size, extra_trim_size, end_threshold,
                       scoring_scheme_vals, min_trim_size, check_barcodes, forward_or_reverse):
         """
@@ -210,6 +246,14 @@ class NanoporeRead(object):
             if check_barcodes and adapter.is_barcode() and \
                     adapter.barcode_direction() == forward_or_reverse:
                 self.end_barcode_scores[adapter.get_barcode_name()] = full_score
+
+        top_3_barcodes = {}
+        idx = 0
+        for key, value in sorted(self.end_barcode_scores.items(), key=lambda kv: (kv[1], kv[0]), reverse=True):
+            if idx < 3:
+                top_3_barcodes[key] = value
+            idx += 1
+        self.end_barcode_scores = top_3_barcodes
 
     def find_middle_adapters(self, adapters, middle_threshold, extra_middle_trim_good_side,
                              extra_middle_trim_bad_side, scoring_scheme_vals,
