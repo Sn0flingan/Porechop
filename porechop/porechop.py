@@ -29,10 +29,28 @@ from .adapters import Adapter, kit_adapters
 from .nanopore_read import NanoporeRead
 from .version import __version__
 
-
 def main():
     args = get_arguments()
-    reads, check_reads, read_type = load_reads(args.input, args.verbosity, args.print_dest,
+    if os.path.isdir(args.input):
+        if args.verbosity > 0:
+            print('\n' + bold_underline('Searching for FASTQ files'), flush=True, file=args.print_dest)
+        fastq_files = sorted([os.path.join(dir_path, f)
+                         for dir_path, _, filenames in os.walk(args.input)
+                         for f in filenames
+                         if f.lower().endswith('.fastq') or f.lower().endswith('.fastq.gz')])
+        if len(fastq_files) >= 10:
+            for i in range(0, len(fastq_files), 10):
+                main2(args, fastq_files[i:i+10])
+        else:
+            main2(args, fastq_files)
+
+    else:
+        main2(args, args.input)
+    return
+
+def main2(args, files):
+    
+    reads, check_reads, read_type = load_reads(files, args.verbosity, args.print_dest,
                                                args.check_reads)
                                                
     '''
@@ -262,28 +280,10 @@ def get_arguments():
 
 def load_reads(input_file_or_directory, verbosity, print_dest, check_read_count):
 
-    # If the input is a file, just load reads from that file. The check reads will just be the
-    # first reads from that file.
-    if os.path.isfile(input_file_or_directory):
-        if verbosity > 0:
-            print('\n' + bold_underline('Loading reads'), flush=True, file=print_dest)
-            print(input_file_or_directory, flush=True, file=print_dest)
-        reads, read_type = load_fasta_or_fastq(input_file_or_directory)
-        if read_type == 'FASTA':
-            reads = [NanoporeRead(x[2], x[1], '') for x in reads]
-        else:  # FASTQ
-            reads = [NanoporeRead(x[4], x[1], x[3]) for x in reads]
-        check_reads = reads[:check_read_count]
-
     # If the input is a directory, assume it's an Albacore directory and search it recursively for
     # fastq files. The check reads will be spread over all of the input files.
-    elif os.path.isdir(input_file_or_directory):
-        if verbosity > 0:
-            print('\n' + bold_underline('Searching for FASTQ files'), flush=True, file=print_dest)
-        fastqs = sorted([os.path.join(dir_path, f)
-                         for dir_path, _, filenames in os.walk(input_file_or_directory)
-                         for f in filenames
-                         if f.lower().endswith('.fastq') or f.lower().endswith('.fastq.gz')])
+    if type(input_file_or_directory) is list:
+        fastqs = input_file_or_directory
         if not fastqs:
             sys.exit('Error: could not find fastq files in ' + input_file_or_directory)
         reads = []
@@ -304,6 +304,20 @@ def load_reads(input_file_or_directory, verbosity, print_dest, check_read_count)
         if verbosity > 0:
             print('', flush=True, file=print_dest)
 
+    # If the input is a file, just load reads from that file. The check reads will just be the
+    # first reads from that file.
+    elif os.path.isfile(input_file_or_directory):
+        if verbosity > 0:
+            print('\n' + bold_underline('Loading reads'), flush=True, file=print_dest)
+            print(input_file_or_directory, flush=True, file=print_dest)
+        reads, read_type = load_fasta_or_fastq(input_file_or_directory)
+        if read_type == 'FASTA':
+            reads = [NanoporeRead(x[2], x[1], '') for x in reads]
+        else:  # FASTQ
+            reads = [NanoporeRead(x[4], x[1], x[3]) for x in reads]
+        check_reads = reads[:check_read_count]
+
+                
     else:
         sys.exit('Error: could not find ' + input_file_or_directory)
 
@@ -724,8 +738,12 @@ def output_reads(reads, out_format, output, read_type, verbosity, discard_middle
             if not read_str:
                 continue
             if barcode_name not in barcode_files:
-                barcode_files[barcode_name] = \
-                    open(os.path.join(barcode_dir, barcode_name + '.' + out_format), 'wt')
+                if os.path.isfile(os.path.join(barcode_dir, barcode_name + '.' + out_format)):
+                    barcode_files[barcode_name] = \
+                        open(os.path.join(barcode_dir, barcode_name + '.' + out_format), 'at')
+                else:
+                    barcode_files[barcode_name] = \
+                        open(os.path.join(barcode_dir, barcode_name + '.' + out_format), 'wt')
             barcode_files[barcode_name].write(read_str)
             barcode_read_counts[barcode_name] += 1
             if untrimmed:
