@@ -179,8 +179,10 @@ class NanoporeRead(object):
                     read_end - read_start >= min_trim_size:
                 trim_amount = read_end + extra_trim_size
                 self.start_trim_amount = max(self.start_trim_amount, trim_amount)
+                '''
                 self.start_adapter_alignments.append((adapter, full_score, partial_score,
                                                       read_start, read_end))
+                '''
             if check_barcodes and adapter.is_barcode() and \
                     adapter.barcode_direction() == forward_or_reverse:
                 self.start_barcode_scores[adapter.get_barcode_name()] = full_score
@@ -201,8 +203,10 @@ class NanoporeRead(object):
                     read_end - read_start >= min_trim_size:
                 trim_amount = (end_size - read_start) + extra_trim_size
                 self.end_trim_amount = max(self.end_trim_amount, trim_amount)
+                '''
                 self.end_adapter_alignments.append((adapter, full_score, partial_score,
                                                     read_start, read_end))
+                '''
             if check_barcodes and adapter.is_barcode() and \
                     adapter.barcode_direction() == forward_or_reverse:
                 self.end_barcode_scores[adapter.get_barcode_name()] = full_score
