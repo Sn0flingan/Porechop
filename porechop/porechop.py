@@ -83,12 +83,17 @@ def assign_barcodes(args, file):
     elif args.verbosity > 0:
         print('No adapters found - output reads are unchanged from input reads\n',
               file=args.print_dest)
-
+    
+    labeled_reads = format_reads(reads, args.min_split_read_size, args.discard_middle, args.untrimmed)
+    
+    '''
     output_reads(reads, args.format, args.output, read_type, args.verbosity,
                  args.discard_middle, args.min_split_read_size, args.print_dest,
                  args.barcode_dir, args.input, args.untrimmed, args.threads,
                  args.discard_unassigned)
+    '''
 
+    return labeled_reads
 
 def get_arguments():
     """
@@ -626,6 +631,16 @@ def output_reads(reads, out_format, output, read_type, verbosity, discard_middle
 
     if verbosity > 0:
         print('', flush=True, file=print_dest)
+
+def format_reads(reads, min_split_size, discard_middle, untrimmed):
+    labeled_reads = [0]*len(reads)
+    idx = 0
+    for read in reads:
+        barcode_name = read.barcode_call
+        fastq = read.get_fastq(min_split_size, discard_middle, untrimmed)
+        labeled_reads[idx] = [barcode_name, [fastq]]
+        idx += 1
+    return labeled_reads
 
 
 def output_progress_line(completed, total, print_dest, end_newline=False, step=10):
