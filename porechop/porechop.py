@@ -40,31 +40,20 @@ def main():
                          if f.lower().endswith('.fastq') or f.lower().endswith('.fastq.gz')])
         if len(fastq_files) >= 10:
             for i in range(0, len(fastq_files), 10):
-                main2(args, fastq_files[i:i+10])
+                assign_barcodes(args, fastq_files[i:i+10])
         else:
-            main2(args, fastq_files)
+            assign_barcodes(args, fastq_files)
 
     else:
-        main2(args, args.input)
+        assign_barcodes(args, args.input)
     return
 
-def main2(args, files):
+def assign_barcodes(args, file):
     
-    reads, check_reads, read_type = load_reads(files, args.verbosity, args.print_dest,
+    reads, check_reads, read_type = load_reads(file, args.verbosity, args.print_dest,
                                                args.check_reads)
-                                               
-    '''
-    matching_sets = find_matching_adapter_sets(check_reads, args.verbosity, args.end_size,
-                                               args.scoring_scheme_vals, args.print_dest,
-                                               args.adapter_threshold, args.threads)#Currently at this part
-    matching_sets = exclude_end_adapters_for_rapid(matching_sets)  #Keep for rapid kit
-    matching_sets = fix_up_1d2_sets(matching_sets)   #Keep for 1d2 kit
-    display_adapter_set_results(matching_sets, args.verbosity, args.print_dest)
-    matching_sets = add_full_barcode_adapter_sets(matching_sets)
-    '''
     
     print("loading adapters and barcodes...")
-    #adapters = load_trim_seq(args.adapters)
     barcodes = load_trim_seq(args.barcodes)
     adapter = kit_adapters[args.seq_kit]
     matching_sets = [adapter] + barcodes #concatenate lists
@@ -72,43 +61,15 @@ def main2(args, files):
     
     print("Finnished loading")
     
-    '''
-    for adapter in matching_sets:
-        print(adapter.toString())
-        print(adapter.get_name())
-        print(adapter.is_barcode())
-        #print(adapter.barcode_direction() == forward_or_reverse_barcodes)
-    #return
-    '''
-
-    
-    '''
-    if args.barcode_dir:
-        forward_or_reverse_barcodes = choose_barcoding_kit(matching_sets, args.verbosity,
-                                                           args.print_dest)
-    else:
-        forward_or_reverse_barcodes = None
-    if args.verbosity > 0:
-        print('\n', file=args.print_dest)
-    '''
-
     if matching_sets:
         check_barcodes = (args.barcode_dir is not None)
-        threads_adapter_ends = 4
+        threads_adapter_ends = 1
         find_adapters_at_read_ends(reads, matching_sets, args.verbosity, args.end_size,
                                    args.extra_end_trim, args.end_threshold,
                                    args.scoring_scheme_vals, args.print_dest, args.min_trim_size,
                                    threads_adapter_ends, check_barcodes, args.barcode_threshold,
                                    args.barcode_diff, args.require_two_barcodes,
                                    forward_or_reverse_barcodes)
-        '''
-        for read in reads:
-            print("\n")
-            print(read.name)
-            print(read.best_start_barcode)
-            print(read.best_end_barcode)
-            print(read.barcode_call)
-        '''
         
         display_read_end_trimming_summary(reads, args.verbosity, args.print_dest)
         
@@ -334,148 +295,6 @@ def get_albacore_barcode_from_path(albacore_path):
         albacore_barcode_num = matches[-1]
         return 'BC' + albacore_barcode_num
     return None
-
-'''
-def find_matching_adapter_sets(check_reads, verbosity, end_size, scoring_scheme_vals, print_dest,
-                               adapter_threshold, threads):
-    """
-    Aligns all of the adapter sets to the start/end of reads to see which (if any) matches best.
-    """
-    read_count = len(check_reads)
-    if verbosity > 0:
-        print(bold_underline('Looking for known adapter sets'), flush=True, file=print_dest)
-        output_progress_line(0, read_count, print_dest)
-
-    search_adapters = [a for a in ADAPTERS if '(full sequence)' not in a.name]
-    search_adapter_count = len(search_adapters)
-
-    # If single-threaded, do the work in a simple loop.
-    if threads == 1:
-        for read_num, read in enumerate(check_reads):
-            for adapter_set in search_adapters:
-                read.align_adapter_set(adapter_set, end_size, scoring_scheme_vals)
-            if verbosity > 0:
-                output_progress_line(read_num+1, read_count, print_dest)
-
-    # If multi-threaded, use a thread pool.
-    else:
-        def align_adapter_set_one_arg(all_args):
-            r, a, b, c = all_args
-            r.align_adapter_set(a, b, c)
-        with ThreadPool(threads) as pool:
-            arg_list = []
-            for read in check_reads:
-                for adapter_set in search_adapters:
-                    arg_list.append((read, adapter_set, end_size, scoring_scheme_vals))
-            finished_count = 0
-            for _ in pool.imap(align_adapter_set_one_arg, arg_list):
-                finished_count += 1
-                if verbosity > 0 and finished_count % search_adapter_count == 0:
-                    output_progress_line(finished_count // search_adapter_count,
-                                         read_count, print_dest)
-
-    if verbosity > 0:
-        output_progress_line(read_count, read_count, print_dest, end_newline=True)
-
-    return [x for x in search_adapters if x.best_start_or_end_score() >= adapter_threshold]
-
-
-def choose_barcoding_kit(adapter_sets, verbosity, print_dest):
-    """
-    If the user is sorting reads by barcode bin, choose one barcode configuration (rev comp
-    barcodes at the start of the read or at the end of the read) and ignore the other.
-    """
-    forward_barcodes = 0
-    reverse_barcodes = 0
-    for adapter_set in adapter_sets:
-        score = adapter_set.best_start_or_end_score()
-        if 'Barcode' in adapter_set.name and '(forward)' in adapter_set.name:
-            forward_barcodes += score
-        elif 'Barcode' in adapter_set.name and '(reverse)' in adapter_set.name:
-            reverse_barcodes += score
-    if forward_barcodes > reverse_barcodes:
-        if verbosity > 0:
-            print('\nBarcodes determined to be in forward orientation', file=print_dest)
-        return 'forward'
-    elif reverse_barcodes > forward_barcodes:
-        if verbosity > 0:
-            print('\nBarcodes determined to be in reverse orientation', file=print_dest)
-        return 'reverse'
-    else:
-        return None
-
-
-def exclude_end_adapters_for_rapid(matching_sets):
-    """
-    Rapid reads shouldn't have end adapters, so we don't want to look for them if this seems to be
-    a rapid read set.
-    """
-    if 'Rapid adapter' in [x.name for x in matching_sets]:
-        for s in matching_sets:
-            s.end_sequence = None
-    return matching_sets
-
-
-def fix_up_1d2_sets(matching_sets):
-    """
-    The 1D^2 adapters share a lot of common sequence with the old SQK-MAP006_short adapters, so if
-    there are strong 1D^2 hits, we can exclude the redundant SQK-MAP006_short adapters.
-    """
-    matching_set_names = [x.name for x in matching_sets]
-    if '1D^2 part 1' in matching_set_names and '1D^2 part 2' in matching_set_names and \
-            'SQK-MAP006 Short' in matching_set_names:
-        part_1_score = [x for x in matching_sets
-                        if x.name == '1D^2 part 1'][0].best_start_or_end_score()
-        part_2_score = [x for x in matching_sets
-                        if x.name == '1D^2 part 2'][0].best_start_or_end_score()
-        sqk_score = [x for x in matching_sets
-                     if x.name == 'SQK-MAP006 Short'][0].best_start_or_end_score()
-        if part_1_score >= sqk_score and part_2_score >= sqk_score:
-            matching_sets = [x for x in matching_sets if x.name != 'SQK-MAP006 Short']
-    return matching_sets
-
-
-def display_adapter_set_results(matching_sets, verbosity, print_dest):
-    if verbosity < 1:
-        return
-    table = [['Set', 'Best read start %ID', 'Best read end %ID']]
-    row_colours = {}
-    matching_set_names = [x.name for x in matching_sets]
-    search_adapters = [a for a in ADAPTERS if '(full sequence)' not in a.name]
-    for adapter_set in search_adapters:
-        start_score = '%.1f' % adapter_set.best_start_score
-        end_score = '%.1f' % adapter_set.best_end_score
-        table.append([adapter_set.name, start_score, end_score])
-        if adapter_set.name in matching_set_names:
-            row_colours[len(table) - 1] = 'green'
-    if verbosity > 0:
-        print_table(table, print_dest, alignments='LRR', row_colour=row_colours,
-                    fixed_col_widths=[35, 8, 8])
-
-
-def add_full_barcode_adapter_sets(matching_sets):
-    """
-    This function adds some new 'full' adapter sequences based on what was already found. For
-    example, if the ligation adapters and the reverse barcode adapters are found, it assumes we are
-    looking at a native barcoding run and so it adds the complete native barcoding adapter
-    sequences (with the barcode's upstream and downstream context included).
-    """
-    matching_set_names = [x.name for x in matching_sets]
-
-    for i in range(1, 97):
-
-        # Native barcode full sequences
-        if all(x in matching_set_names
-               for x in ['SQK-NSK007', 'Barcode ' + str(i) + ' (reverse)']):
-            matching_sets.append(make_full_native_barcode_adapter(i))
-
-        # Rapid barcode full sequences
-        if all(x in matching_set_names
-               for x in ['SQK-NSK007', 'Rapid', 'Barcode ' + str(i) + ' (forward)']):
-            matching_sets.append(make_full_rapid_barcode_adapter(i))
-
-    return matching_sets
-'''
 
 def load_trim_seq(sequence_file):
     trim_sequences = []
