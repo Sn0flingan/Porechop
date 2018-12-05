@@ -120,6 +120,9 @@ class NanoporeRead(object):
             return fasta_str
 
     def get_fastq(self, min_split_read_size, discard_middle, untrimmed=False):
+        fastq_seq = ''
+        read_name = ''
+        adapter_trim = ''
         if not self.middle_trim_positions:
             if untrimmed:
                 seq = self.seq
@@ -131,20 +134,29 @@ class NanoporeRead(object):
                 return ''
             if self.rna:
                 seq = seq.replace('T', 'U')
-            return ''.join(['@', self.name, '\n', seq, '\n+\n', quals, '\n'])
+            fastq_seq = seq + '\n+\n' + quals + '\n'
+            read_name = self.name
+            adapter_trim = ''.join(['aTrim=(', str(self.start_trim_amount), ',', str(self.end_trim_amount), ')'])
         elif discard_middle:
             return ''
         else:
-            fastq_str = ''
             for i, split_read_part in enumerate(self.get_split_read_parts(min_split_read_size)):
-                read_name = add_number_to_read_name(self.name, i + 1)
                 seq, qual = split_read_part[0], split_read_part[1]
                 if not seq:  # Don't return empty sequences
                     return ''
                 if self.rna:
                     seq = seq.replace('T', 'U')
-                fastq_str += ''.join(['@', read_name, '\n', seq, '\n+\n', qual, '\n'])
-            return fastq_str
+                fastq_seq += seq + '\n+\n' + quals + '\n'
+                read_name = add_number_to_read_name(self.name, i + 1)
+                adapter_trim = ''.join(['aTrim=(',  str(self.middle_trim_positions[0]), ',', str(self. self.middle_trim_positions[1]), ')'])
+        header =''.join(['@',read_name,' bc%=(',
+                         self.best_start_barcode[0],':', str(self.best_start_barcode[1]),',',
+                         self.best_end_barcode[0], ':', str(self.best_end_barcode[1]),')',
+                         ' bc2nd%=(',
+                         self.second_best_start_barcode[0],':', str(self.second_best_start_barcode[1]),',',
+                         self.second_best_end_barcode[0],':', str(self.second_best_end_barcode[1]),')',
+                         ' ', adapter_trim])
+        return ''.join([header, '\n', fastq_seq])
 
     def align_adapter_set(self, adapter_set, end_size, scoring_scheme_vals):
         """
